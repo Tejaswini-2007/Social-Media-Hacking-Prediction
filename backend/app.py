@@ -10,7 +10,7 @@ import os
 
 app = Flask(__name__)
 CORS(app, origins=[
-    "https://your-app-name.vercel.app",
+    "https://social-media-hacking-prediction.vercel.app",
     "http://localhost:5173"
 ])
 
