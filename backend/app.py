@@ -6,21 +6,19 @@ import redis
 import json
 from datetime import datetime
 import psycopg2
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-# ── Load models ────────────────────────────────────────────
-xgb     = pickle.load(open('ml/xgb_model.pkl',    'rb'))
-iso     = pickle.load(open('ml/iso_model.pkl',     'rb'))
-scaler  = pickle.load(open('ml/scaler.pkl',        'rb'))
-le      = pickle.load(open('ml/label_encoder.pkl', 'rb'))
-FEATURES = pickle.load(open('ml/features.pkl',     'rb'))
+xgb      = pickle.load(open('ml/xgb_model.pkl',    'rb'))
+iso      = pickle.load(open('ml/iso_model.pkl',     'rb'))
+scaler   = pickle.load(open('ml/scaler.pkl',        'rb'))
+le       = pickle.load(open('ml/label_encoder.pkl', 'rb'))
+FEATURES = pickle.load(open('ml/features.pkl',      'rb'))
 
-# ── Redis connection ───────────────────────────────────────
 r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 
-# ── PostgreSQL connection ──────────────────────────────────
 def get_db():
     return psycopg2.connect(
         dbname="hackguard", user="postgres",
@@ -30,10 +28,7 @@ def get_db():
 @app.route('/predict', methods=['POST'])
 def predict():
     data = request.json
-
-    # Map incoming JSON to exact feature order
     platform_encoded = le.transform([data.get('platform', 'Twitter')])[0]
-
     feature_values = [
         platform_encoded,
         data.get('has_profile_pic', 0),
@@ -53,24 +48,18 @@ def predict():
         data.get('suspicious_links_in_bio', 0),
         data.get('verified', 0)
     ]
-
     X = np.array([feature_values])
     X_scaled = scaler.transform(X)
-
-    # Risk probability from XGBoost
-    risk_prob   = xgb.predict_proba(X_scaled)[0][1]
-    risk_score  = float(round(risk_prob * 100, 2))
-    # Anomaly flag from Isolation Forest
-    anomaly = int(iso.predict(X_scaled)[0])
+    risk_prob  = xgb.predict_proba(X_scaled)[0][1]
+    risk_score = float(round(risk_prob * 100, 2))
+    anomaly    = int(iso.predict(X_scaled)[0])
     is_suspicious = risk_score > 70 or anomaly == -1
-
     if risk_score > 85:
         action = 'BLOCK'
     elif is_suspicious:
         action = 'MFA_REQUIRED'
     else:
         action = 'ALLOW'
-
     result = {
         'risk_score': risk_score,
         'is_suspicious': is_suspicious,
@@ -78,12 +67,8 @@ def predict():
         'action': action,
         'timestamp': datetime.utcnow().isoformat()
     }
-
-    # Cache in Redis
     user_id = data.get('user_id', 'unknown')
     r.setex(f"prediction:{user_id}", 120, json.dumps(result))
-
-    # Log to PostgreSQL
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -97,8 +82,8 @@ def predict():
         cur.close(); conn.close()
     except Exception as e:
         print("DB log error:", e)
-
     return jsonify(result)
+
 @app.route('/logs', methods=['GET'])
 def get_logs():
     try:
@@ -113,32 +98,26 @@ def get_logs():
         rows = cur.fetchall()
         cur.close(); conn.close()
         return jsonify([{
-            'user_id': r[0],
-            'platform': r[1],
-            'risk_score': r[2],
-            'action': r[3],
-            'is_suspicious': r[4],
-            'timestamp': str(r[5])
-        } for r in rows])
+            'user_id': row[0],
+            'platform': row[1],
+            'risk_score': row[2],
+            'action': row[3],
+            'is_suspicious': row[4],
+            'timestamp': str(row[5])
+        } for row in rows])
     except Exception as e:
         return jsonify({'error': str(e)})
 
 @app.route('/history/<user_id>', methods=['GET'])
 def get_history(user_id):
-    """Return recent prediction history for a user"""
     cached = r.get(f"prediction:{user_id}")
     if cached:
         return jsonify({'source': 'cache', 'data': json.loads(cached)})
     return jsonify({'source': 'none', 'data': None})
 
-
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'models_loaded': True})
 
-
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
-
-   
