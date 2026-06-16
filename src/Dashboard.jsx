@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from "recharts";
 
-const API_URL = "https://social-media-hacking-prediction.onrender.com";
+const API_URL = "https://social-media-hacking-prediction-1.onrender.com";
 
 const PLATFORMS = ["Twitter", "Instagram", "Facebook", "LinkedIn"];
 
