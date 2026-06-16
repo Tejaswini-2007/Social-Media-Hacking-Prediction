@@ -5,6 +5,8 @@ import {
   ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from "recharts";
 
+const API_URL = "https://social-media-hacking-prediction.onrender.com";
+
 const PLATFORMS = ["Twitter", "Instagram", "Facebook", "LinkedIn"];
 
 const defaultForm = {
@@ -60,13 +62,13 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-     const res = await axios.post("/api/predict", {
+      const res = await axios.post(`${API_URL}/predict`, {
         ...form, user_id: "dashboard_user_001"
       });
       setResult(res.data);
       setHistory(prev => [res.data, ...prev].slice(0, 5));
     } catch (e) {
-      setError("Cannot connect to Flask API — make sure it is running on port 5000");
+      setError("Cannot connect to Flask API — make sure the backend is running.");
     }
     setLoading(false);
   };
