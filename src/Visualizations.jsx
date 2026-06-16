@@ -26,7 +26,7 @@ export default function Visualizations() {
 
   const fetchLogs = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/logs");
+      const res = await axios.get("/api/logs");
       setLogs(res.data);
       setLoading(false);
     } catch (e) {
