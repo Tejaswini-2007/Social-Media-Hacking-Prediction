@@ -24,8 +24,10 @@ except:
 
 def get_db():
     return psycopg2.connect(
-        dbname="hackguard", user="postgres",
-        password="Tejaswini1031", host="localhost"
+        dbname=os.environ.get("DB_NAME", "hackguard"),
+        user=os.environ.get("DB_USER", "postgres"),
+        password=os.environ.get("DB_PASSWORD", ""),
+        host=os.environ.get("DB_HOST", "localhost")
     )
 
 @app.route('/predict', methods=['POST'])
@@ -71,11 +73,11 @@ def predict():
         'timestamp': datetime.utcnow().isoformat()
     }
     user_id = data.get('user_id', 'unknown')
-    if r:
-    try:
-        r.setex(f"prediction:{user_id}", 120, json.dumps(result))
-    except:
-        pass
+    if r:                                               # FIX: try is now indented inside if
+        try:
+            r.setex(f"prediction:{user_id}", 120, json.dumps(result))
+        except:
+            pass
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -117,9 +119,13 @@ def get_logs():
 
 @app.route('/history/<user_id>', methods=['GET'])
 def get_history(user_id):
-    cached = r.get(f"prediction:{user_id}")
-    if cached:
-        return jsonify({'source': 'cache', 'data': json.loads(cached)})
+    if r:                                               # FIX: guard against None redis
+        try:
+            cached = r.get(f"prediction:{user_id}")
+            if cached:
+                return jsonify({'source': 'cache', 'data': json.loads(cached)})
+        except:
+            pass
     return jsonify({'source': 'none', 'data': None})
 
 @app.route('/health', methods=['GET'])
@@ -127,4 +133,4 @@ def health():
     return jsonify({'status': 'ok', 'models_loaded': True})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
