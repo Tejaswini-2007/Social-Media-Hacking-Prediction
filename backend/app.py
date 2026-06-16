@@ -17,7 +17,10 @@ scaler   = pickle.load(open('ml/scaler.pkl',        'rb'))
 le       = pickle.load(open('ml/label_encoder.pkl', 'rb'))
 FEATURES = pickle.load(open('ml/features.pkl',      'rb'))
 
-r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+try:
+    r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+except:
+    r = None
 
 def get_db():
     return psycopg2.connect(
@@ -68,7 +71,11 @@ def predict():
         'timestamp': datetime.utcnow().isoformat()
     }
     user_id = data.get('user_id', 'unknown')
-    r.setex(f"prediction:{user_id}", 120, json.dumps(result))
+    if r:
+    try:
+        r.setex(f"prediction:{user_id}", 120, json.dumps(result))
+    except:
+        pass
     try:
         conn = get_db()
         cur = conn.cursor()
