@@ -9,7 +9,10 @@ import psycopg2
 import os
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=[
+    "https://your-app-name.vercel.app",
+    "http://localhost:5173"
+])
 
 xgb      = pickle.load(open('ml/xgb_model.pkl',    'rb'))
 iso      = pickle.load(open('ml/iso_model.pkl',     'rb'))
