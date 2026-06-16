@@ -7,10 +7,7 @@ from datetime import datetime
 import os
 import re
 app = Flask(__name__)
-CORS(app, origins=[
-    re.compile(r"https://.*\.vercel\.app"),
-    "http://localhost:5173"
-])
+CORS(app)
 
 xgb      = pickle.load(open('ml/xgb_model.pkl',    'rb'))
 iso      = pickle.load(open('ml/iso_model.pkl',     'rb'))
