@@ -6,6 +6,8 @@ import {
   Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
+const API_URL = "https://social-media-hacking-prediction.onrender.com";
+
 const COLORS = {
   BLOCK: "#dc2626",
   MFA_REQUIRED: "#d97706",
@@ -26,7 +28,7 @@ export default function Visualizations() {
 
   const fetchLogs = async () => {
     try {
-      const res = await axios.get("/api/logs");
+      const res = await axios.get(`${API_URL}/logs`);
       setLogs(res.data);
       setLoading(false);
     } catch (e) {
