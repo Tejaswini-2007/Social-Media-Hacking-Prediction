@@ -5,10 +5,10 @@ import numpy as np
 import json
 from datetime import datetime
 import os
-
+import re
 app = Flask(__name__)
 CORS(app, origins=[
-    "https://social-media-hacking-prediction.vercel.app",
+    re.compile(r"https://.*\.vercel\.app"),
     "http://localhost:5173"
 ])
 
