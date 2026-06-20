@@ -1,48 +1,108 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Dashboard from "./Dashboard";
 import Visualizations from "./Visualizations";
+import Compare from "./Compare";
+import Alerts from "./Alerts";
+import { AlertsProvider, useAlerts } from "./AlertsContext";
+import "./theme.css";
 
-// Move your existing App.jsx content to Dashboard.jsx first!
-export default function App() {
+function AppShell() {
   const [page, setPage] = useState("dashboard");
+  const [theme, setTheme] = useState("light");
+  const { unread, clearUnread } = useAlerts();
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const tabs = [
+    { id: "dashboard", label: "Analyse", icon: "🔍" },
+    { id: "visualizations", label: "Visualizations", icon: "📊" },
+    { id: "compare", label: "Compare", icon: "⚖️" },
+    { id: "alerts", label: "Alerts", icon: "🔔", badge: unread },
+  ];
+
+  const handleTabClick = (id) => {
+    setPage(id);
+    if (id === "alerts") clearUnread();
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "sans-serif" }}>
+    <div style={{ minHeight: "100vh" }}>
+      <div style={{ maxWidth: 1140, margin: "0 auto", padding: "20px 24px" }}>
 
-      {/* Header with nav */}
-      <div style={{ background: "#1e293b", color: "#fff", padding: "16px 32px",
-                    display: "flex", alignItems: "center",
-                    justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 28 }}>🛡️</span>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20 }}>HackGuard</h1>
-            <p style={{ margin: 0, fontSize: 12, color: "#94a3b8" }}>
-              Social Media Account Hacking Prediction System
-            </p>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          paddingBottom: 16, borderBottom: "1px solid var(--border-color)", marginBottom: 20
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 22 }}>🛡️</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>HackGuard</div>
+              <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                Account intelligence platform
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ position: "relative" }}>
+              <button className="btn-secondary" onClick={() => handleTabClick("alerts")}>
+                🔔
+              </button>
+              {unread > 0 && (
+                <span style={{
+                  position: "absolute", top: -6, right: -6,
+                  background: "var(--danger)", color: "white",
+                  borderRadius: "999px", fontSize: 11, fontWeight: 600,
+                  padding: "1px 6px", minWidth: 16, textAlign: "center"
+                }}>
+                  {unread}
+                </span>
+              )}
+            </div>
+
+            <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} className="btn-secondary">
+              {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+            </button>
           </div>
         </div>
 
-        {/* Navigation */}
-        <div style={{ display: "flex", gap: 8 }}>
-          {[
-            { id: "dashboard",       label: "🔍 Analyse" },
-            { id: "visualizations",  label: "📊 Visualizations" }
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setPage(tab.id)}
-              style={{ padding: "8px 16px", borderRadius: 6, border: "none",
-                       cursor: "pointer", fontWeight: 600, fontSize: 13,
-                       background: page === tab.id ? "#fff" : "transparent",
-                       color: page === tab.id ? "#1e293b" : "#94a3b8" }}>
-              {tab.label}
+        <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              className={`tab ${page === t.id ? "active" : ""}`}
+              onClick={() => handleTabClick(t.id)}
+              style={{ position: "relative" }}
+            >
+              {t.icon} {t.label}
+              {t.badge > 0 && (
+                <span style={{
+                  marginLeft: 6, background: "var(--danger)", color: "white",
+                  borderRadius: "999px", fontSize: 10, fontWeight: 600,
+                  padding: "1px 6px"
+                }}>
+                  {t.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Page content */}
-      {page === "dashboard"      && <Dashboard />}
-      {page === "visualizations" && <Visualizations />}
+        {page === "dashboard" && <Dashboard />}
+        {page === "visualizations" && <Visualizations />}
+        {page === "compare" && <Compare />}
+        {page === "alerts" && <Alerts />}
+      </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AlertsProvider>
+      <AppShell />
+    </AlertsProvider>
   );
 }
