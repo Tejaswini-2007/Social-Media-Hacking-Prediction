@@ -4,8 +4,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell, PieChart, Pie, Legend
 } from "recharts";
-
-const API_URL = "https://social-media-hacking-prediction-1.onrender.com";
+import { useAlerts } from "./AlertsContext";
+import jsPDF from "jspdf";
 
 const PLATFORMS = ["Twitter", "Instagram", "Facebook", "LinkedIn"];
 
@@ -30,21 +30,21 @@ const defaultForm = {
 };
 
 const FIELD_LABELS = {
-  has_profile_pic: "Has Profile Pic (0/1)",
-  bio_length: "Bio Length",
-  username_randomness: "Username Randomness (0/1)",
+  has_profile_pic: "Has profile pic (0/1)",
+  bio_length: "Bio length",
+  username_randomness: "Username randomness (0/1)",
   followers: "Followers",
   following: "Following",
-  follower_following_ratio: "Follower/Following Ratio",
-  account_age_days: "Account Age (Days)",
-  posts: "Total Posts",
-  posts_per_day: "Posts Per Day",
-  caption_similarity_score: "Caption Similarity Score",
-  content_similarity_score: "Content Similarity Score",
-  follow_unfollow_rate: "Follow/Unfollow Rate",
-  spam_comments_rate: "Spam Comments Rate",
-  generic_comment_rate: "Generic Comment Rate",
-  suspicious_links_in_bio: "Suspicious Links in Bio (0/1)",
+  follower_following_ratio: "Follower/following ratio",
+  account_age_days: "Account age (days)",
+  posts: "Total posts",
+  posts_per_day: "Posts per day",
+  caption_similarity_score: "Caption similarity score",
+  content_similarity_score: "Content similarity score",
+  follow_unfollow_rate: "Follow/unfollow rate",
+  spam_comments_rate: "Spam comments rate",
+  generic_comment_rate: "Generic comment rate",
+  suspicious_links_in_bio: "Suspicious links in bio (0/1)",
   verified: "Verified (0/1)",
 };
 
@@ -54,6 +54,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState([]);
   const [error, setError]     = useState(null);
+  const { pushAlert } = useAlerts();
 
   const handleChange = (k, v) =>
     setForm(prev => ({ ...prev, [k]: isNaN(v) || v === "" ? v : parseFloat(v) }));
@@ -62,163 +63,176 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.post(`${API_URL}/predict`, {
+      const res = await axios.post("http://localhost:5000/predict", {
         ...form, user_id: "dashboard_user_001"
       });
       setResult(res.data);
+      pushAlert(res.data, "Analyse");
       setHistory(prev => [res.data, ...prev].slice(0, 5));
     } catch (e) {
-      setError("Cannot connect to Flask API — make sure the backend is running.");
+      setError("Cannot connect to Flask API — make sure it is running on port 5000");
     }
     setLoading(false);
   };
 
-  const actionColor =
-    result?.action === "ALLOW"        ? "#16a34a" :
-    result?.action === "MFA_REQUIRED" ? "#d97706" : "#dc2626";
+  const statusColor =
+    result?.action === "ALLOW" ? "success" :
+    result?.action === "MFA_REQUIRED" ? "warning" : "danger";
 
   const pieData = result ? [
     { name: "Risk", value: result.risk_score },
     { name: "Safe", value: parseFloat((100 - result.risk_score).toFixed(2)) }
   ] : [];
 
-  const PIE_COLORS = ["#dc2626", "#16a34a"];
+  const PIE_COLORS = ["var(--danger)", "var(--success)"];
+  const handleExportPDF = () => {
+  if (!result) return;
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+  doc.text("HackGuard — Account Risk Report", 14, 20);
+
+  doc.setFontSize(11);
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Date(result.timestamp).toLocaleString()}`, 14, 28);
+
+  doc.setDrawColor(220);
+  doc.line(14, 32, 196, 32);
+
+  doc.setFontSize(13);
+  doc.setTextColor(0);
+  doc.text("Decision summary", 14, 42);
+
+  doc.setFontSize(11);
+  doc.text(`Platform: ${form.platform}`, 14, 50);
+  doc.text(`Risk score: ${result.risk_score}%`, 14, 57);
+  doc.text(`Decision: ${result.action.replace("_", " ")}`, 14, 64);
+  doc.text(`Anomaly detected: ${result.anomaly_detected ? "Yes" : "No"}`, 14, 71);
+
+  doc.setFontSize(13);
+  doc.text("Account signals used", 14, 84);
+
+  let y = 92;
+  Object.entries(FIELD_LABELS).forEach(([k, label]) => {
+    doc.setFontSize(10);
+    doc.text(`${label}: ${form[k]}`, 14, y);
+    y += 6;
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+  });
+
+  doc.save(`hackguard-report-${Date.now()}.pdf`);
+};
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <div>
+      {/* Summary metrics */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        {[
+          { label: "Total checks", value: history.length },
+          { label: "Last risk score", value: result ? `${result.risk_score}%` : "—" },
+          { label: "Last decision", value: result ? result.action : "—" },
+          { label: "Platform", value: form.platform },
+        ].map(card => (
+          <div className="metric-card" key={card.label}>
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "0 0 6px" }}>
+              {card.label}
+            </p>
+            <p style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{card.value}</p>
+          </div>
+        ))}
+      </div>
+
       {error && (
-        <div style={{ background: "#fee2e2", border: "1px solid #fca5a5",
-                      borderRadius: 8, padding: "12px 16px", marginBottom: 16,
-                      color: "#dc2626" }}>
-          ⚠️ {error}
+        <div className="card" style={{ borderColor: "var(--danger)", marginBottom: 16, color: "var(--danger)" }}>
+          {error}
         </div>
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-        <div style={{ background: "#fff", borderRadius: 12, padding: 24,
-                      boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
-          <h2 style={{ margin: "0 0 16px", fontSize: 16, color: "#1e293b" }}>
-            Account Details
-          </h2>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 12, color: "#64748b", display: "block", marginBottom: 4 }}>
-              Platform
-            </label>
-            <select value={form.platform}
-              onChange={e => handleChange("platform", e.target.value)}
-              style={{ width: "100%", padding: "8px 10px", borderRadius: 6,
-                       border: "1px solid #e2e8f0", fontSize: 14 }}>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: 16 }}>
+
+        {/* Input panel */}
+        <div className="card">
+          <p style={{ fontWeight: 600, fontSize: 15, margin: "0 0 14px" }}>Account details</p>
+
+          <div style={{ marginBottom: 10 }}>
+            <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>Platform</label>
+            <select value={form.platform} onChange={e => handleChange("platform", e.target.value)}
+              style={{ marginTop: 4 }}>
               {PLATFORMS.map(p => <option key={p}>{p}</option>)}
             </select>
           </div>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {Object.entries(FIELD_LABELS).map(([k, label]) => (
               <div key={k}>
-                <label style={{ fontSize: 11, color: "#64748b",
-                                display: "block", marginBottom: 3 }}>
-                  {label}
-                </label>
+                <label style={{ fontSize: 11, color: "var(--text-secondary)" }}>{label}</label>
                 <input type="number" step="any" value={form[k]}
                   onChange={e => handleChange(k, e.target.value)}
-                  style={{ width: "100%", padding: "6px 8px", borderRadius: 6,
-                           border: "1px solid #e2e8f0", fontSize: 13,
-                           boxSizing: "border-box" }} />
+                  style={{ marginTop: 3 }} />
               </div>
             ))}
           </div>
-          <button onClick={handlePredict} disabled={loading}
-            style={{ marginTop: 20, width: "100%", padding: "12px",
-                     background: loading ? "#94a3b8" : "#1e293b",
-                     color: "#fff", border: "none", borderRadius: 8,
-                     fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
-                     fontWeight: 600 }}>
-            {loading ? "Analysing..." : "🔍 Analyse Account"}
+
+          <button onClick={handlePredict} disabled={loading} className="btn-primary"
+            style={{ width: "100%", marginTop: 18 }}>
+            {loading ? "Analysing…" : "🔍 Analyse account"}
           </button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Result panel */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {result ? (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                {[
-                  { label: "Risk Score", value: `${result.risk_score}%`, color: actionColor },
-                  { label: "Decision",   value: result.action,           color: actionColor },
-                  { label: "Anomaly",    value: result.anomaly_detected ? "YES" : "NO",
-                    color: result.anomaly_detected ? "#dc2626" : "#16a34a" }
-                ].map(card => (
-                  <div key={card.label}
-                    style={{ background: "#fff", borderRadius: 10, padding: 16,
-                             boxShadow: "0 1px 4px rgba(0,0,0,0.08)", textAlign: "center" }}>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 6 }}>
-                      {card.label}
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: card.color }}>
-                      {card.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ background: "#fff", borderRadius: 12, padding: 16,
-                            boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: 14 }}>Risk Breakdown</h3>
-                <ResponsiveContainer width="100%" height={200}>
+              <div className="card" style={{ background: `var(--${statusColor}-light)`, borderColor: `var(--${statusColor})` }}>
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+    <div>
+      <p style={{ fontSize: 12, color: `var(--${statusColor})`, margin: "0 0 4px" }}>Decision</p>
+      <p style={{ fontSize: 20, fontWeight: 600, color: `var(--${statusColor})`, margin: 0 }}>
+        {result.action.replace("_", " ")}
+      </p>
+    </div>
+    <p style={{ fontSize: 30, fontWeight: 600, color: `var(--${statusColor})`, margin: 0 }}>
+      {result.risk_score}%
+    </p>
+  </div>
+  <button onClick={handleExportPDF} className="btn-secondary" style={{ width: "100%", marginTop: 12 }}>
+    📄 Export PDF report
+  </button>
+</div>
+
+              <div className="card">
+                <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 8px" }}>Risk breakdown</p>
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name"
-                         cx="50%" cy="50%" outerRadius={80} label>
-                      {pieData.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i]} />
-                      ))}
+                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                      {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
                     </Pie>
                     <Legend /><Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div style={{ background: "#fff", borderRadius: 12, padding: 16,
-                            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                            borderLeft: `4px solid ${actionColor}` }}>
-                <h3 style={{ margin: "0 0 6px", fontSize: 14 }}>Recommended Action</h3>
-                {result.action === "BLOCK" && (
-                  <p style={{ margin: 0, color: "#dc2626" }}>
-                    🚫 Account blocked — highly suspicious activity detected.
-                  </p>
-                )}
-                {result.action === "MFA_REQUIRED" && (
-                  <p style={{ margin: 0, color: "#d97706" }}>
-                    🔐 MFA required — additional verification needed.
-                  </p>
-                )}
-                {result.action === "ALLOW" && (
-                  <p style={{ margin: 0, color: "#16a34a" }}>
-                    ✅ Account allowed — activity looks normal.
-                  </p>
-                )}
-                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#94a3b8" }}>
-                  Checked at: {new Date(result.timestamp).toLocaleString()}
-                </p>
-              </div>
+
               {history.length > 0 && (
-                <div style={{ background: "#fff", borderRadius: 12, padding: 16,
-                              boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
-                  <h3 style={{ margin: "0 0 10px", fontSize: 14 }}>Recent Checks</h3>
-                  <ResponsiveContainer width="100%" height={120}>
-                    <BarChart data={history.map((h, i) => ({
-                      name: `#${history.length - i}`, risk: h.risk_score
-                    }))}>
-                      <XAxis dataKey="name" />
-                      <YAxis domain={[0, 100]} />
+                <div className="card">
+                  <p style={{ fontWeight: 600, fontSize: 14, margin: "0 0 8px" }}>Recent checks</p>
+                  <ResponsiveContainer width="100%" height={110}>
+                    <BarChart data={history.map((h, i) => ({ name: `#${history.length - i}`, risk: h.risk_score }))}>
+                      <XAxis dataKey="name" /><YAxis domain={[0, 100]} />
                       <Tooltip />
-                      <Bar dataKey="risk" fill="#1e293b" radius={4} />
+                      <Bar dataKey="risk" fill="var(--text-primary)" radius={4} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
             </>
           ) : (
-            <div style={{ background: "#fff", borderRadius: 12, padding: 40,
-                          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                          textAlign: "center", color: "#94a3b8" }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🔍</div>
-              <p>Fill in the account details and click<br />
-                <strong>Analyse Account</strong> to see results</p>
+            <div className="card" style={{ textAlign: "center", color: "var(--text-tertiary)", padding: 40 }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>🔍</div>
+              <p>Fill in the account details and analyse to see results</p>
             </div>
           )}
         </div>
