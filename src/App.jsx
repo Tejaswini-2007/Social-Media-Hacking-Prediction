@@ -5,9 +5,10 @@ import Compare from "./Compare";
 import Alerts from "./Alerts";
 import { AlertsProvider, useAlerts } from "./AlertsContext";
 import "./theme.css";
+import Landing from "./Landing";
 
 function AppShell() {
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("landing");
   const [theme, setTheme] = useState("light");
   const { unread, clearUnread } = useAlerts();
 
@@ -31,65 +32,80 @@ function AppShell() {
     <div style={{ minHeight: "100vh" }}>
       <div style={{ maxWidth: 1140, margin: "0 auto", padding: "20px 24px" }}>
 
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          paddingBottom: 16, borderBottom: "1px solid var(--border-color)", marginBottom: 20
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 22 }}>🛡️</span>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>HackGuard</div>
-              <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
-                Account intelligence platform
+        {page !== "landing" && (
+          <>
+            {/* Top bar */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              paddingBottom: 16, borderBottom: "1px solid var(--border-color)", marginBottom: 20
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>🛡️</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 16 }}>HackGuard</div>
+                  <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                    Account intelligence platform
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ position: "relative" }}>
+                  <button className="btn-secondary" onClick={() => handleTabClick("alerts")}>
+                    🔔
+                  </button>
+                  {unread > 0 && (
+                    <span style={{
+                      position: "absolute", top: -6, right: -6,
+                      background: "var(--danger)", color: "white",
+                      borderRadius: "999px", fontSize: 11, fontWeight: 600,
+                      padding: "1px 6px", minWidth: 16, textAlign: "center"
+                    }}>
+                      {unread}
+                    </span>
+                  )}
+                </div>
+
+                <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} className="btn-secondary">
+                  {theme === "light" ? "🌙 Dark" : "☀️ Light"}
+                </button>
+
+                <button
+                  className="btn-secondary"
+                  onClick={() => setPage("landing")}
+                  title="Back to home"
+                >
+                  🏠 Home
+                </button>
               </div>
             </div>
-          </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ position: "relative" }}>
-              <button className="btn-secondary" onClick={() => handleTabClick("alerts")}>
-                🔔
-              </button>
-              {unread > 0 && (
-                <span style={{
-                  position: "absolute", top: -6, right: -6,
-                  background: "var(--danger)", color: "white",
-                  borderRadius: "999px", fontSize: 11, fontWeight: 600,
-                  padding: "1px 6px", minWidth: 16, textAlign: "center"
-                }}>
-                  {unread}
-                </span>
-              )}
+            {/* Tabs */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
+              {tabs.map(t => (
+                <button
+                  key={t.id}
+                  className={`tab ${page === t.id ? "active" : ""}`}
+                  onClick={() => handleTabClick(t.id)}
+                  style={{ position: "relative" }}
+                >
+                  {t.icon} {t.label}
+                  {t.badge > 0 && (
+                    <span style={{
+                      marginLeft: 6, background: "var(--danger)", color: "white",
+                      borderRadius: "999px", fontSize: 10, fontWeight: 600,
+                      padding: "1px 6px"
+                    }}>
+                      {t.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
+          </>
+        )}
 
-            <button onClick={() => setTheme(theme === "light" ? "dark" : "light")} className="btn-secondary">
-              {theme === "light" ? "🌙 Dark" : "☀️ Light"}
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 6, marginBottom: 24 }}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              className={`tab ${page === t.id ? "active" : ""}`}
-              onClick={() => handleTabClick(t.id)}
-              style={{ position: "relative" }}
-            >
-              {t.icon} {t.label}
-              {t.badge > 0 && (
-                <span style={{
-                  marginLeft: 6, background: "var(--danger)", color: "white",
-                  borderRadius: "999px", fontSize: 10, fontWeight: 600,
-                  padding: "1px 6px"
-                }}>
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
+        {page === "landing" && <Landing onGetStarted={() => setPage("dashboard")} />}
         {page === "dashboard" && <Dashboard />}
         {page === "visualizations" && <Visualizations />}
         {page === "compare" && <Compare />}
