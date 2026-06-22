@@ -28,7 +28,7 @@ export default function Visualizations() {
 
   const fetchLogs = async () => {
     try {
-      const res = await axios.get(`${API_URL}/logs`);
+      const res = await axios.get("https://social-media-hacking-prediction-1.onrender.com/logs");
       setLogs(res.data);
       setLoading(false);
     } catch (e) {
