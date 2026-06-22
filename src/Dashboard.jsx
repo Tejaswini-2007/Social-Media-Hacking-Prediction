@@ -63,7 +63,7 @@ export default function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.post("http://localhost:5000/predict", {
+      const res = await axios.post("https://social-media-hacking-prediction-1.onrender.com/predict", {
         ...form, user_id: "dashboard_user_001"
       });
       setResult(res.data);
