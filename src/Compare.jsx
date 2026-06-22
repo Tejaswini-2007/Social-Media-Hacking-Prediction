@@ -85,8 +85,8 @@ export default function Compare() {
     setError(null);
     try {
       const [resA, resB] = await Promise.all([
-        axios.post("http://localhost:5000/predict", { ...formA, user_id: "compare_a" }),
-        axios.post("http://localhost:5000/predict", { ...formB, user_id: "compare_b" }),
+        axios.post("https://social-media-hacking-prediction-1.onrender.com/predict", { ...formA, user_id: "compare_a" }),
+        axios.post("https://social-media-hacking-prediction-1.onrender.com/predict", { ...formB, user_id: "compare_b" }),
       ]);
       setResultA(resA.data);
       setResultB(resB.data);
