@@ -9,7 +9,7 @@ import psycopg2
 import os
 
 app = Flask(__name__)
-CORS(app)  # Allow ALL origins
+CORS(app)
 
 @app.after_request
 def after_request(response):
@@ -31,9 +31,16 @@ except:
     r = None
 
 def get_db():
+    # Use the full DATABASE_URL from environment variable
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        return psycopg2.connect(db_url)
+    # Fallback to localhost for local development
     return psycopg2.connect(
-        dbname=os.environ.get("postgresql://hackguard_db_user:GcEPUvqHTmoaMTYaFYxQoIGIk0VTQPvF@dpg-d8udq637uimc73e322g0-a/hackguard_db"),
-        
+        dbname="hackguard",
+        user="postgres",
+        password="Tejaswini1031",
+        host="localhost"
     )
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
@@ -128,7 +135,7 @@ def get_logs():
         } for row in rows])
     except Exception as e:
         print("Logs error:", e)
-        return jsonify([])  # Return empty array not error object!
+        return jsonify([])
 
 @app.route('/history/<user_id>', methods=['GET'])
 def get_history(user_id):
