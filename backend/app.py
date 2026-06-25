@@ -2,10 +2,12 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle
 import numpy as np
+import redis
 import json
 from datetime import datetime
+import psycopg2
 import os
-import re
+
 app = Flask(__name__)
 CORS(app)
 
@@ -15,24 +17,19 @@ scaler   = pickle.load(open('ml/scaler.pkl',        'rb'))
 le       = pickle.load(open('ml/label_encoder.pkl', 'rb'))
 FEATURES = pickle.load(open('ml/features.pkl',      'rb'))
 
-# ── Redis (optional) ───────────────────────────────────────
 try:
-    import redis
-    REDIS_URL = os.environ.get("REDIS_URL")
-    r = redis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
+    r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+    r.ping()
 except:
     r = None
 
-# ── PostgreSQL (optional) ──────────────────────────────────
 def get_db():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        return None
-    import psycopg2
-    return psycopg2.connect(db_url)
-
-# ── In-memory fallback log (when no DB) ───────────────────
-in_memory_logs = []
+    return psycopg2.connect(
+        dbname=os.environ.get("DB_NAME", "hackguard"),
+        user=os.environ.get("DB_USER", "postgres"),
+        password=os.environ.get("DB_PASSWORD", "Tejaswini1031"),
+        host=os.environ.get("DB_HOST", "localhost")
+    )
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -59,97 +56,70 @@ def predict():
     ]
     X = np.array([feature_values])
     X_scaled = scaler.transform(X)
-    risk_prob     = xgb.predict_proba(X_scaled)[0][1]
-    risk_score    = float(round(risk_prob * 100, 2))
-    anomaly       = int(iso.predict(X_scaled)[0])
-    is_suspicious = risk_score > 70 or anomaly == -1
+    risk_prob  = xgb.predict_proba(X_scaled)[0][1]
+    risk_score = float(round(risk_prob * 100, 2))
+    anomaly    = int(iso.predict(X_scaled)[0])
 
-    if risk_score > 85:
-        action = 'BLOCK'
-    elif is_suspicious:
-        action = 'MFA_REQUIRED'
+    # Stage C — 3 distinct states with new thresholds
+    is_suspicious = risk_score > 50 or anomaly == -1
+    if risk_score > 75:
+        action = 'BLOCKED'
+    elif risk_score > 40 or anomaly == -1:
+        action = 'NEEDS_MFA'
     else:
-        action = 'ALLOW'
+        action = 'SAFE'
 
     result = {
-        'risk_score':       risk_score,
-        'is_suspicious':    is_suspicious,
+        'risk_score': risk_score,
+        'is_suspicious': is_suspicious,
         'anomaly_detected': anomaly == -1,
-        'action':           action,
-        'platform':         data.get('platform', 'Twitter'),
-        'timestamp':        datetime.utcnow().isoformat()
+        'action': action,
+        'timestamp': datetime.utcnow().isoformat()
     }
-
     user_id = data.get('user_id', 'unknown')
-
-    # Save to Redis if available
     if r:
         try:
             r.setex(f"prediction:{user_id}", 120, json.dumps(result))
         except:
             pass
-
-    # Save to PostgreSQL if available, else in-memory
-    conn = get_db()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO prediction_logs
-                (user_id, platform, risk_score, action, is_suspicious, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (user_id, data.get('platform'), risk_score,
-                  action, is_suspicious, datetime.utcnow()))
-            conn.commit()
-            cur.close()
-            conn.close()
-        except Exception as e:
-            print("DB log error:", e)
-    else:
-        # ✅ In-memory fallback — works on Render without a DB
-        in_memory_logs.insert(0, {
-            'user_id':      user_id,
-            'platform':     data.get('platform', 'Twitter'),
-            'risk_score':   risk_score,
-            'action':       action,
-            'is_suspicious': is_suspicious,
-            'timestamp':    datetime.utcnow().isoformat()
-        })
-        # Keep only last 50
-        if len(in_memory_logs) > 50:
-            in_memory_logs.pop()
-
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO prediction_logs
+            (user_id, platform, risk_score, action, is_suspicious, timestamp)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (user_id, data.get('platform'), risk_score,
+              action, is_suspicious, datetime.utcnow()))
+        conn.commit()
+        cur.close(); conn.close()
+    except Exception as e:
+        print("DB log error:", e)
     return jsonify(result)
 
 @app.route('/logs', methods=['GET'])
 def get_logs():
-    conn = get_db()
-    if conn:
-        try:
-            import psycopg2.extras
-            cur = conn.cursor()
-            cur.execute("""
-                SELECT user_id, platform, risk_score, action, is_suspicious, timestamp
-                FROM prediction_logs
-                ORDER BY timestamp DESC
-                LIMIT 50
-            """)
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
-            return jsonify([{
-                'user_id':      row[0],
-                'platform':     row[1],
-                'risk_score':   float(row[2]),
-                'action':       row[3],
-                'is_suspicious': row[4],
-                'timestamp':    str(row[5])
-            } for row in rows])
-        except Exception as e:
-            return jsonify([]), 200
-    else:
-        # ✅ Return in-memory logs if no DB
-        return jsonify(in_memory_logs)
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT user_id, platform, risk_score, action, is_suspicious, timestamp
+            FROM prediction_logs
+            ORDER BY timestamp DESC
+            LIMIT 50
+        """)
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        return jsonify([{
+            'user_id': row[0],
+            'platform': row[1],
+            'risk_score': row[2],
+            'action': row[3],
+            'is_suspicious': row[4],
+            'timestamp': str(row[5])
+        } for row in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/history/<user_id>', methods=['GET'])
 def get_history(user_id):
@@ -166,5 +136,14 @@ def get_history(user_id):
 def health():
     return jsonify({'status': 'ok', 'models_loaded': True})
 
+@app.route('/model-stats', methods=['GET'])
+def model_stats():
+    try:
+        with open('ml/model_stats.json', 'r') as f:
+            stats = json.load(f)
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
