@@ -9,7 +9,13 @@ import psycopg2
 import os
 
 app = Flask(__name__)
-CORS(app)
+
+# Fix CORS — explicitly allow your Vercel frontend
+CORS(app, resources={r"/*": {"origins": [
+    "https://social-media-hacking-prediction.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000"
+]}})
 
 xgb      = pickle.load(open('ml/xgb_model.pkl',    'rb'))
 iso      = pickle.load(open('ml/iso_model.pkl',     'rb'))
@@ -60,7 +66,6 @@ def predict():
     risk_score = float(round(risk_prob * 100, 2))
     anomaly    = int(iso.predict(X_scaled)[0])
 
-    # Stage C — 3 distinct states with new thresholds
     is_suspicious = risk_score > 50 or anomaly == -1
     if risk_score > 75:
         action = 'BLOCKED'
