@@ -9,13 +9,14 @@ import psycopg2
 import os
 
 app = Flask(__name__)
+CORS(app)  # Allow ALL origins
 
-# Fix CORS — explicitly allow your Vercel frontend
-CORS(app, resources={r"/*": {"origins": [
-    "https://social-media-hacking-prediction.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:3000"
-]}})
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
 
 xgb      = pickle.load(open('ml/xgb_model.pkl',    'rb'))
 iso      = pickle.load(open('ml/iso_model.pkl',     'rb'))
@@ -37,8 +38,10 @@ def get_db():
         host=os.environ.get("DB_HOST", "localhost")
     )
 
-@app.route('/predict', methods=['POST'])
+@app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
     data = request.json
     platform_encoded = le.transform([data.get('platform', 'Twitter')])[0]
     feature_values = [
@@ -102,8 +105,10 @@ def predict():
         print("DB log error:", e)
     return jsonify(result)
 
-@app.route('/logs', methods=['GET'])
+@app.route('/logs', methods=['GET', 'OPTIONS'])
 def get_logs():
+    if request.method == 'OPTIONS':
+        return jsonify([]), 200
     try:
         conn = get_db()
         cur = conn.cursor()
@@ -124,7 +129,8 @@ def get_logs():
             'timestamp': str(row[5])
         } for row in rows])
     except Exception as e:
-        return jsonify({'error': str(e)})
+        print("Logs error:", e)
+        return jsonify([])  # Return empty array not error object!
 
 @app.route('/history/<user_id>', methods=['GET'])
 def get_history(user_id):
@@ -141,8 +147,10 @@ def get_history(user_id):
 def health():
     return jsonify({'status': 'ok', 'models_loaded': True})
 
-@app.route('/model-stats', methods=['GET'])
+@app.route('/model-stats', methods=['GET', 'OPTIONS'])
 def model_stats():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
     try:
         with open('ml/model_stats.json', 'r') as f:
             stats = json.load(f)
