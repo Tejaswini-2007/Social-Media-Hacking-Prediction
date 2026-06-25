@@ -31,17 +31,40 @@ except:
     r = None
 
 def get_db():
-    # Use the full DATABASE_URL from environment variable
     db_url = os.environ.get("DATABASE_URL")
+    print(f"DATABASE_URL found: {bool(db_url)}")  # Debug
     if db_url:
         return psycopg2.connect(db_url)
-    # Fallback to localhost for local development
     return psycopg2.connect(
         dbname="hackguard",
         user="postgres",
         password="Tejaswini1031",
         host="localhost"
     )
+
+# ── DEBUG route — remove after fixing ──
+@app.route('/debug', methods=['GET'])
+def debug():
+    db_url = os.environ.get("DATABASE_URL")
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM prediction_logs")
+        count = cur.fetchone()[0]
+        cur.close(); conn.close()
+        return jsonify({
+            'DATABASE_URL_set': bool(db_url),
+            'DATABASE_URL_preview': db_url[:30] + '...' if db_url else None,
+            'db_connected': True,
+            'row_count': count
+        })
+    except Exception as e:
+        return jsonify({
+            'DATABASE_URL_set': bool(db_url),
+            'DATABASE_URL_preview': db_url[:30] + '...' if db_url else None,
+            'db_connected': False,
+            'error': str(e)
+        })
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
@@ -106,8 +129,9 @@ def predict():
               action, is_suspicious, datetime.utcnow()))
         conn.commit()
         cur.close(); conn.close()
+        print("DB insert success!")  # Debug
     except Exception as e:
-        print("DB log error:", e)
+        print(f"DB log error: {e}")  # Debug
     return jsonify(result)
 
 @app.route('/logs', methods=['GET', 'OPTIONS'])
@@ -134,7 +158,7 @@ def get_logs():
             'timestamp': str(row[5])
         } for row in rows])
     except Exception as e:
-        print("Logs error:", e)
+        print(f"Logs error: {e}")
         return jsonify([])
 
 @app.route('/history/<user_id>', methods=['GET'])
