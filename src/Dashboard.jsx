@@ -68,15 +68,42 @@ const detectPlatform = (url) => {
   return "Twitter";
 };
 
-const rand = (min, max, dec = 0) => {
-  const v = Math.random() * (max - min) + min;
+// ── Deterministic seeding: same URL always produces the same simulated values ──
+// Simple string hash (djb2-style) to turn the URL into a numeric seed
+const hashStringToSeed = (str) => {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return hash >>> 0; // force unsigned 32-bit
+};
+
+// mulberry32 — small, fast, deterministic PRNG. Given the same seed it
+// always produces the same sequence of "random" numbers.
+const mulberry32 = (seed) => {
+  let a = seed;
+  return () => {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const rand = (min, max, dec = 0, rng = Math.random) => {
+  const v = rng() * (max - min) + min;
   return dec > 0 ? parseFloat(v.toFixed(dec)) : Math.round(v);
 };
 
-// Generate simulated values biased by URL patterns
+// Generate simulated values biased by URL patterns.
+// Deterministic: the same URL always seeds the same PRNG sequence,
+// so re-analysing the same link gives the same simulated signals.
 const simulateFromUrl = (url) => {
   const platform   = detectPlatform(url);
   const lowerUrl   = url.toLowerCase();
+
+  const seed = hashStringToSeed(lowerUrl);
+  const rng  = mulberry32(seed);
 
   // Suspicious signals in the URL itself
   const hasNumbers     = /\d{4,}/.test(url);
@@ -87,20 +114,20 @@ const simulateFromUrl = (url) => {
     // Likely fake/bot account
     return {
       platform,
-      has_profile_pic:           rand(0, 1),
-      bio_length:                rand(0, 40),
+      has_profile_pic:           rand(0, 1, 0, rng),
+      bio_length:                rand(0, 40, 0, rng),
       username_randomness:       1,
-      followers:                 rand(1, 80),
-      following:                 rand(2000, 7000),
-      follower_following_ratio:  rand(0.001, 0.05, 3),
-      account_age_days:          rand(1, 30),
-      posts:                     rand(100, 800),
-      posts_per_day:             rand(10, 50, 1),
-      caption_similarity_score:  rand(0.8, 0.99, 2),
-      content_similarity_score:  rand(0.8, 0.99, 2),
-      follow_unfollow_rate:      rand(300, 999),
-      spam_comments_rate:        rand(200, 900),
-      generic_comment_rate:      rand(300, 900),
+      followers:                 rand(1, 80, 0, rng),
+      following:                 rand(2000, 7000, 0, rng),
+      follower_following_ratio:  rand(0.001, 0.05, 3, rng),
+      account_age_days:          rand(1, 30, 0, rng),
+      posts:                     rand(100, 800, 0, rng),
+      posts_per_day:             rand(10, 50, 1, rng),
+      caption_similarity_score:  rand(0.8, 0.99, 2, rng),
+      content_similarity_score:  rand(0.8, 0.99, 2, rng),
+      follow_unfollow_rate:      rand(300, 999, 0, rng),
+      spam_comments_rate:        rand(200, 900, 0, rng),
+      generic_comment_rate:      rand(300, 900, 0, rng),
       suspicious_links_in_bio:   1,
       verified:                  0,
     };
@@ -109,21 +136,21 @@ const simulateFromUrl = (url) => {
     return {
       platform,
       has_profile_pic:           1,
-      bio_length:                rand(80, 250),
+      bio_length:                rand(80, 250, 0, rng),
       username_randomness:       0,
-      followers:                 rand(500, 50000),
-      following:                 rand(100, 1000),
-      follower_following_ratio:  rand(1.5, 30, 2),
-      account_age_days:          rand(180, 2000),
-      posts:                     rand(50, 500),
-      posts_per_day:             rand(0.1, 2, 2),
-      caption_similarity_score:  rand(0.05, 0.3, 2),
-      content_similarity_score:  rand(0.05, 0.3, 2),
-      follow_unfollow_rate:      rand(1, 20),
-      spam_comments_rate:        rand(0, 10),
-      generic_comment_rate:      rand(0, 15),
+      followers:                 rand(500, 50000, 0, rng),
+      following:                 rand(100, 1000, 0, rng),
+      follower_following_ratio:  rand(1.5, 30, 2, rng),
+      account_age_days:          rand(180, 2000, 0, rng),
+      posts:                     rand(50, 500, 0, rng),
+      posts_per_day:             rand(0.1, 2, 2, rng),
+      caption_similarity_score:  rand(0.05, 0.3, 2, rng),
+      content_similarity_score:  rand(0.05, 0.3, 2, rng),
+      follow_unfollow_rate:      rand(1, 20, 0, rng),
+      spam_comments_rate:        rand(0, 10, 0, rng),
+      generic_comment_rate:      rand(0, 15, 0, rng),
       suspicious_links_in_bio:   0,
-      verified:                  rand(0, 1),
+      verified:                  rand(0, 1, 0, rng),
     };
   }
 };
