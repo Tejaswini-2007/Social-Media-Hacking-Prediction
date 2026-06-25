@@ -32,10 +32,8 @@ except:
 
 def get_db():
     return psycopg2.connect(
-        dbname=os.environ.get("DB_NAME", "hackguard"),
-        user=os.environ.get("DB_USER", "postgres"),
-        password=os.environ.get("DB_PASSWORD", "Tejaswini1031"),
-        host=os.environ.get("DB_HOST", "localhost")
+        dbname=os.environ.get("postgresql://hackguard_db_user:GcEPUvqHTmoaMTYaFYxQoIGIk0VTQPvF@dpg-d8udq637uimc73e322g0-a/hackguard_db"),
+        
     )
 
 @app.route('/predict', methods=['POST', 'OPTIONS'])
